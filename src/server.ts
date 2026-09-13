@@ -7,8 +7,14 @@ interface Env {
 }
 
 type UpstreamBody = {
-  error?: string | { message?: string };
-  result?: unknown;
+  result: {
+    content: Array<{
+      type: "text";
+      text: string;
+    }>;
+    structuredContent?: unknown;
+    [key: string]: unknown;
+  };
 };
 
 function createServer(env: Env) {
@@ -47,26 +53,7 @@ function createServer(env: Env) {
 
       const upstreamBody = (await upstreamResponse.json()) as UpstreamBody;
 
-      if (upstreamBody?.error) {
-        const errorMessage =
-          typeof upstreamBody.error === "string"
-            ? upstreamBody.error
-            : upstreamBody.error.message ?? JSON.stringify(upstreamBody.error);
-
-        throw new Error(
-          errorMessage
-        );
-      }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(upstreamBody.result ?? null)
-          }
-        ],
-        structuredContent: upstreamBody.result ?? null
-      };
+      return upstreamBody.result;
     }
   );
 
