@@ -6,6 +6,11 @@ interface Env {
   SHOPIFY_CART_MCP_ENDPOINT: string;
 }
 
+type UpstreamBody = {
+  error?: string | { message?: string };
+  result?: unknown;
+};
+
 function createServer(env: Env) {
   const server = new McpServer({
     name: "Cart-MCP",
@@ -17,10 +22,10 @@ function createServer(env: Env) {
     {
       description:
         "Create a new cart with line items and optional buyer context. Use this tool when the buyer has selected products from the Catalog and you want to build a cart before starting checkout. The response includes a cart object with the merchant-assigned id, validated line items, estimated totals, and a continue_url that the buyer can use to pick up the cart on the merchant's storefront.",
-      inputSchema: {
+      inputSchema: z.object({
         meta: z.any().optional(),
         cart: z.any().optional()
-      }
+      })
     },
     async (arguments_) => {
       const upstreamResponse = await fetch(env.SHOPIFY_CART_MCP_ENDPOINT, {
@@ -40,15 +45,28 @@ function createServer(env: Env) {
         })
       });
 
-      const upstreamBody = await upstreamResponse.json();
+      const upstreamBody = (await upstreamResponse.json()) as UpstreamBody;
 
       if (upstreamBody?.error) {
+        const errorMessage =
+          typeof upstreamBody.error === "string"
+            ? upstreamBody.error
+            : upstreamBody.error.message ?? JSON.stringify(upstreamBody.error);
+
         throw new Error(
-          upstreamBody.error.message ?? JSON.stringify(upstreamBody.error)
+          errorMessage
         );
       }
 
-      return upstreamBody.result;
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(upstreamBody.result ?? null)
+          }
+        ],
+        structuredContent: upstreamBody.result ?? null
+      };
     }
   );
 
